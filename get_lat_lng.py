@@ -1,28 +1,27 @@
 import json
-from urllib.request import urlopen
-from urllib.parse import quote
+import requests
 
-def getdata():
-    url = 'http://api.map.baidu.com/geocoder/v3/'
-    output = 'json'
-    ak = 'AhLF63hKP8iXpMvXSiHjGhXsaEByvoKY'
-    a = ['北京', '天津', '石家庄', '太原', '呼和浩特', '沈阳', '大连', '长春', '哈尔滨', '上海', '南京', '杭州', '宁波', '合肥', '福州', '厦门', '南昌', '济南',
-         '青岛', '郑州', '武汉', '长沙', '广州', '深圳', '南宁', '海口', '重庆', '成都', '贵阳', '昆明', '拉萨', '西安', '兰州', '西宁', '银川', '乌鲁木齐']
-    for i in a:
-        add = quote(i)
-        uri = url + '?' + 'address=' + add + '&output=' + output + '&ak=' + ak  # 百度地理编码API
-        req = urlopen(uri)
-        res = req.read().decode("utf-8")
-        print(res)
-        if res is None or res == '':
-            print('I got a null or empty string value for data in a file')
-        else:
-            temp = json.loads(res,strict=False)
-            print(temp['location']['lng'], temp['location']['lat'])  # 打印出经纬度
 
-    address = '北京市'
-    url = 'http://api.map.baidu.com/geocoder?output=json&key=f247cdb592eb43ebac6ccd27f796e2d2&address=' + str(address)
-    response = requests.get(url)
-    answer = response.json()
-    lon = float(answer['result']['location']['lng'])
-    lat = float(answer['result']['location']['lat'])
+def get_location_x_y():
+    headers = {
+        'Connection': 'close',
+        "user-agent": "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36"
+    }
+    # url = 'https://restapi.amap.com/v3/geocode/geo?parameters'
+    # parameters = {
+    #     'key': '7965603a8aba9e199eb14d80d5f2073f',
+    #     'address': '长沙市湖南大学天马公寓1区1栋'
+    # }
+    # page_resource = requests.get(url, params=parameters,verify=False)
+    # text = page_resource.text  # 获得数据是json格式
+    # data = json.loads(text)  # 把数据变成字典格式
+    # location = data["geocodes"][0]['location']
+    # print(location)
+    # return location
+    response = requests.get('https://lbs.amap.com/console/show/picker',headers = headers,timeout=30,verify=False)
+    print(response.text)
+
+if __name__ == '__main__':
+    get_location_x_y()
+
+
