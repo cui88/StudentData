@@ -11,7 +11,6 @@ from xml.etree import ElementTree
 import time
 import argparse
 import datetime
-from threading import Thread, Lock
 import pdb
 import math
 
