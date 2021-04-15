@@ -1,25 +1,12 @@
-import pandas
-from bs4 import BeautifulSoup
-from urllib import request
-import re
-import os
-import sys
 import pandas as pd
-import numpy as np
-import urllib.parse as urp
-from xml.etree import ElementTree
-import time
-import argparse
-import datetime
-from threading import Thread, Lock
-import pdb
-import math
+import json
+import requests
 
 dataPath = "data/xuehao-mac/"
 rj_location_file = 'rj.xlsx'
 h3_location_file = 'h3c.xls'
 other_location_file = 'other_place.xls'
-university = '湖南大学'
+university = '长沙市湖南大学'
 
 
 def Get_RJFile():
@@ -50,7 +37,8 @@ def Get_h3File():
 def Get_otherplaceFile():
     path = dataPath + other_location_file
     other_location_pd = pd.read_excel(path, keep_default_na=False)
-    other_location_pd = other_location_pd[['Ap_Mac', 'Location']]  # 只提取这两列
+    print(other_location_pd.head())
+    other_location_pd = other_location_pd[['AP_Mac', 'Location']]  # 只提取这两列
     other_location_pd['AP_Mac'] = other_location_pd['AP_Mac'].str.lower()
     return other_location_pd
 
@@ -67,33 +55,54 @@ def getDict(df, key_name, value_name):
     return csvDict
 
 
-def get_location1(data, city):
-    my_ak = 'AhLF63hKP8iXpMvXSiHjGhXsaEByvoKY'  # 需要自己填写自己的AK
-    tag = urp.quote('地铁站')  # URL编码
-    data['lat_lon'] = ''
-    for i in range(len(data)):
-        if not pd.isnull(data['location'][i]):
-            name = university + data['location'][i]
-            query = urp.quote(name)
-            try:
-                url = 'http://api.map.baidu.com/place/v2/search?query=' + query + '&tag=' + '&region=' + urp.quote(
-                    city) + '&output=json&ak=' + my_ak
-                req = request.urlopen(url)
-                res = req.read().decode()
-                lat = pd.to_numeric(re.findall('"lat":(.*)', res)[0].split(',')[0])
-                lng = pd.to_numeric(re.findall('"lng":(.*)', res)[0])
-                print(data['location'][i])
-                data['lat_lon'][i] = [lat,lng] # 纬度和经度
-                print(data['lat_lon'][i])
-            except Exception as e:
-                print(e.args)
-        else:
-            print("Location is empty")
+# def get_location1(data, city):
+#     my_ak = 'AhLF63hKP8iXpMvXSiHjGhXsaEByvoKY'  # 需要自己填写自己的AK
+#     tag = urp.quote('地铁站')  # URL编码
+#     data['lat_lon'] = ''
+#     for i in range(len(data)):
+#         if not pd.isnull(data['location'][i]):
+#             name = university + data['location'][i]
+#             query = urp.quote(name)
+#             try:
+#                 url = 'http://api.map.baidu.com/place/v2/search?query=' + query + '&tag=' + '&region=' + urp.quote(
+#                     city) + '&output=json&ak=' + my_ak
+#                 req = request.urlopen(url)
+#                 res = req.read().decode()
+#                 lat = pd.to_numeric(re.findall('"lat":(.*)', res)[0].split(',')[0])
+#                 lng = pd.to_numeric(re.findall('"lng":(.*)', res)[0])
+#                 print(data['location'][i])
+#                 data['lat_lon'][i] = [lat,lng] # 纬度和经度
+#                 print(data['lat_lon'][i])
+#             except Exception as e:
+#                 print(e.args)
+#         else:
+#             print("Location is empty")
+#     df.to_excel('./location.xlsx', index=False, encoding='utf-8')
+
+
+def get_location_x_y():
+    url = 'https://restapi.amap.com/v3/geocode/geo?parameters'
+    location_dict = getLocationDict()
+    df = pd.DataFrame.from_dict(location_dict, orient='index', columns=['location'])[['location']]
+    df = df.drop_duplicates()
+    df['lat_lon'] = ''
+    for i in range(len(df)):
+        parameters = {
+            'key': '7965603a8aba9e199eb14d80d5f2073f',
+            'address': university + df['location'][i]
+        }
+        page_resource = requests.get(url, params=parameters, verify=False)
+        text = page_resource.text  # 获得数据是json格式
+        data = json.loads(text)  # 把数据变成字典格式
+        location = data["geocodes"][0]['location']
+        print(location)
+        df['lat_lon'][i] = location
     df.to_excel('./location.xlsx', index=False, encoding='utf-8')
 
 
 if __name__ == '__main__':
-    location_dict = getLocationDict()
-    df = pd.DataFrame.from_dict(location_dict, orient='index', columns=['location'])
-    df = df.reset_index().rename(columns={'ap_mac': 'location'})
-    get_location1(df, '长沙')
+    # location_dict = getLocationDict()
+    # df = pd.DataFrame.from_dict(location_dict, orient='index', columns=['location'])
+    # df = df.reset_index().rename(columns={'ap_mac': 'location'})
+    # get_location1(df, '长沙')
+    get_location_x_y()
