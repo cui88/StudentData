@@ -1,8 +1,6 @@
 import pandas as pd
-<<<<<<< HEAD
 import json
 import requests
-=======
 import numpy as np
 import urllib.parse as urp
 from xml.etree import ElementTree
@@ -11,7 +9,6 @@ import argparse
 import datetime
 import pdb
 import math
->>>>>>> guolabpn
 
 dataPath = "data/xuehao-mac/"
 rj_location_file = 'rj.xlsx'
