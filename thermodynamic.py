@@ -293,6 +293,7 @@ def consumer(q, user_dict, local_dict, lat_lng_dict, up_time, down_time, q2, sha
                                 if device_mac.strip() in user_dict:
                                     user_id = user_dict[device_mac]
                                     user_flag = str(name) + user_id
+                                    # share_var  共享的user_id存储为list
                                     if user_flag.strip() not in share_var:
                                         share_var.append(user_flag)
                                     else:

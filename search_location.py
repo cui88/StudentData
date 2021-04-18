@@ -315,6 +315,7 @@ if __name__ == '__main__':
     html_path = "html/"
     start = time.time()
     df_data = find(userID, startTime, endTime)
+    # df_data.to_excel('./result_file.xlsx', index=False, encoding='utf-8')
     if not df_data.empty:
         data_list = get_location(df_data)
         if data_list:
