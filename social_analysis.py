@@ -11,7 +11,7 @@ from PIL import Image
 dataPath = "data/xuehao-mac/"
 location_file = 'ap_mac_location.xlsx'
 user_file_name = 'UserMac20201231.csv'
-process_num = 2
+process_num = 5
 latlng_file_name = 'location.xlsx'
 
 # 设定每个用户每天初始活动时间为 10h*60min = 600min
@@ -67,7 +67,8 @@ def account_places_number(startTime, endTime):
     result_dict = {}
     result_list = []
     address_list = getAddressList()
-    q = JoinableQueue()
+    # q = JoinableQueue()
+    q = Queue()
     q2 = Queue()
     # 创建生产者
     p = Process(target=producer, args=(q, year_month_dict))
@@ -95,14 +96,24 @@ def account_places_number(startTime, endTime):
             c[i].join()
 
     # type(i)为datetime
+    address_flag = False
+    address_number_dict = {}
     for address in address_list:
         # type(j)为dict
         for address_dict in result_list:
             if address in address_dict:
+                address_flag = True
                 # j[i]为dict
                 user_dict = address_dict[address]
                 for user_id in user_dict:
-                    result_dict.setdefault(address, {}).setdefault(user_id, []).append(user_dict[user_id])
+                    for time_stamp in user_dict[user_id]:
+                        result_dict.setdefault(address, {}).setdefault(user_id, []).append(time_stamp)
+        if address_flag:
+            sorted_user_time(result_dict, address)
+            address_number_dict[address] = len(result_dict[address])
+            address_flag = False
+    address_places_list = sorted(address_number_dict.items(), key=lambda x: x[1], reverse=False)
+    print(address_places_list)
     print('--------------')
     print(len(result_dict))
     print('--------------')
@@ -113,12 +124,11 @@ def consumer(q, user_dict, local_dict, up_time, down_time, q2):
     result_dict = {}
     startDateTime = datetime.datetime.strptime(up_time, '%Y-%m-%d %H:%M:%S')
     endDateTime = datetime.datetime.strptime(down_time, '%Y-%m-%d %H:%M:%S')
-    i = 0
     while True:
-        if i > 50:
-            if q.empty():
-                print('end')
-                break
+        # print("q.size:%d"%q.qsize())
+        if q.empty():
+            # print("end")
+            break
         ap_path = q.get()
         ap_file_path = os.path.abspath(os.path.join(dataPath, ap_path))
         if os.path.exists(ap_file_path):
@@ -150,10 +160,9 @@ def consumer(q, user_dict, local_dict, up_time, down_time, q2):
         else:
             print("%s文件不存在!" % ap_path)
         # Queue.task_done() 在完成一项工作之后，Queue.task_done()函数向任务已经完成的队列发送一个信号
-        q.task_done()
-        i += 1
+        # q.task_done()
     print('--------')
-    print(len(result_dict))
+    print("进程结果长度：%d"%len(result_dict))
     q2.put(result_dict)
 
 
@@ -170,11 +179,18 @@ def producer(q, year_month_dict):
                     end_num = str(i)
                 h3_file_path = h3_file + end_num + ".csv"
                 rj_file_path = rj_file + end_num + ".csv"
-                while q.qsize() >= 5:
-                    continue;
+                # while q.qsize() >= 5:
+                #     continue;
                 q.put(h3_file_path)
                 q.put(rj_file_path)
-    q.join()
+    # q.join()
+
+
+def sorted_user_time(result_dict, address):
+    user_dict = result_dict[address]
+    for k, v in user_dict.items():
+        time_list = sorted(v, key=lambda x: x[0].timestamp(), reverse=False)
+        user_dict[k] = time_list
 
 
 def compareDateTime2(dt1, dt2):
@@ -186,6 +202,7 @@ if __name__ == '__main__':
     endTime = input("请输入查询的结束时间（格式：2020-11-23 23:00:00）：")
 
     start = time.time()
-    account_places_number(startTime, endTime)
+    places_dict = account_places_number(startTime, endTime)
+
     end = time.time()
     print('程序执行时间(s)： ', end - start)
