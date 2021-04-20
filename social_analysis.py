@@ -11,7 +11,7 @@ from PIL import Image
 dataPath = "data/xuehao-mac/"
 location_file = 'ap_mac_location.xlsx'
 user_file_name = 'UserMac20201231.csv'
-process_num = 5
+process_num = 2
 latlng_file_name = 'location.xlsx'
 
 # 设定每个用户每天初始活动时间为 10h*60min = 600min
@@ -50,7 +50,9 @@ def GetTimeData(year_month_dict, up_time, down_time):
 
 
 def getAddressList():
-    return
+    path = dataPath + location_file
+    location_pd = pd.read_excel(path, keep_default_na=False)
+    return location_pd['Location'].unique().tolist()
 
 
 def account_places_number(startTime, endTime):
@@ -83,6 +85,7 @@ def account_places_number(startTime, endTime):
                 result_list.append(q2.get())
                 break
     # 多进程
+    print(len(result_list))
     for i in range(process_num):
         print("----%d:准备回收进程" % i)
         c[i].join(timeout=1)
@@ -90,15 +93,19 @@ def account_places_number(startTime, endTime):
         if c[i].is_alive():
             c[i].terminate()
             c[i].join()
+
     # type(i)为datetime
-    for i in address_list:
+    for address in address_list:
         # type(j)为dict
-        for j in result_list:
-            if i in j:
+        for address_dict in result_list:
+            if address in address_dict:
                 # j[i]为dict
-                result_dict.setdefault(i, []).extend(j[i])
-                print("----:" + str(i) + "长度%d" % len(j[i]))
-    # print(len(result_dict[datetime.datetime.strptime('2020-11-22 08', '%Y-%m-%d %H')]))
+                user_dict = address_dict[address]
+                for user_id in user_dict:
+                    result_dict.setdefault(address, {}).setdefault(user_id, []).append(user_dict[user_id])
+    print('--------------')
+    print(len(result_dict))
+    print('--------------')
     return result_dict
 
 
@@ -106,32 +113,48 @@ def consumer(q, user_dict, local_dict, up_time, down_time, q2):
     result_dict = {}
     startDateTime = datetime.datetime.strptime(up_time, '%Y-%m-%d %H:%M:%S')
     endDateTime = datetime.datetime.strptime(down_time, '%Y-%m-%d %H:%M:%S')
+    i = 0
     while True:
-        # print(q.qsize())
-        if q.empty():
-            # print("end")
-            break
+        if i > 50:
+            if q.empty():
+                print('end')
+                break
         ap_path = q.get()
         ap_file_path = os.path.abspath(os.path.join(dataPath, ap_path))
         if os.path.exists(ap_file_path):
             ap_pd = pd.read_csv(ap_file_path, na_values='NAN', encoding='utf_8_sig')
             if not ap_pd.empty:
-                ap_pd['time'] = pd.to_datetime(ap_pd['Up_Time'])
-                ap_pd.sort_values('time', inplace=True)
+                ap_pd['Up_Time'] = pd.to_datetime(ap_pd['Up_Time'])
+                ap_pd.sort_values('Up_Time', inplace=True)
                 ap_pd = ap_pd.reset_index(drop=True)
-                judge_time = ap_pd['time'][len(ap_pd) - 1]
+                judge_time = ap_pd['Up_Time'][len(ap_pd) - 1]
                 if compareDateTime2(judge_time, startDateTime) and compareDateTime2(endDateTime,
                                                                                     judge_time):
-                    ap_pd_group = ap_pd.groupby(ap_pd['AP_Mac'])
-                    for name, group in ap_pd_group:
-                        if compareDateTime2(name, startDateTime) and compareDateTime2(endDateTime,
-                                                                                      name):
+                    ap_pd['Down_Time'] = pd.to_datetime(ap_pd['Down_Time'])
+                    ap_pd['Location'] = ap_pd['AP_Mac'].map(local_dict)
+                    ap_pd = ap_pd[ap_pd['Location'].notna()]
+                    # print(ap_pd)
+                    if not ap_pd.empty:
+                        ap_pd_group = ap_pd.groupby(ap_pd['Location'])
+                        for name, group in ap_pd_group:
                             group = group.reset_index(drop=True)
                             for i in range(len(group)):
-                                device_mac = group['Device_Mac'][i]
-                                if device_mac.strip() in user_dict:
-                                    user_id = user_dict[device_mac]
-
+                                user_up_time = group['Up_Time'][i]
+                                if compareDateTime2(user_up_time, startDateTime) and compareDateTime2(endDateTime,
+                                                                                              user_up_time):
+                                    user_down_time = group['Down_Time'][i]
+                                    device_mac = group['Device_Mac'][i]
+                                    if device_mac.strip() in user_dict:
+                                        user_id = user_dict[device_mac]
+                                        result_dict.setdefault(name, {}).setdefault(user_id,[]).append([user_up_time, user_down_time])
+        else:
+            print("%s文件不存在!" % ap_path)
+        # Queue.task_done() 在完成一项工作之后，Queue.task_done()函数向任务已经完成的队列发送一个信号
+        q.task_done()
+        i += 1
+    print('--------')
+    print(len(result_dict))
+    q2.put(result_dict)
 
 
 def producer(q, year_month_dict):
