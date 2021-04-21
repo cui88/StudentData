@@ -55,7 +55,7 @@ def getAddressList():
     return location_pd['Location'].unique().tolist()
 
 
-def account_places_number(startTime, endTime):
+def account_places_number(startTime, endTime, address_places_list):
     year_month_dict = {}
 
     user_path = os.path.join(dataPath, user_file_name)
@@ -190,11 +190,37 @@ def sorted_user_time(result_dict, address):
     user_dict = result_dict[address]
     for k, v in user_dict.items():
         time_list = sorted(v, key=lambda x: x[0].timestamp(), reverse=False)
-        user_dict[k] = time_list
+        # 合并连续时间
+        if len(time_list) > 1:
+            first_stamp = True
+            overlap = False
+            result = []
+            t1 = []
+            for time in time_list:
+                if first_stamp:
+                    t1 = time
+                    first_stamp = False
+                    continue
+                else:
+                    # 如果时间戳相差阈值小于30分钟，则也视为时间连续
+                    if t1[1] >= time[0] or ((time[1] - t1[0]).total_seconds() <= 1800):
+                        overlap = True
+                        t1 = [(min(t1[0], time[0]), max(t1[1], time[1]))]
+                        first_stamp = False
+                    else:
+                        first_stamp = True
+                        result.append(t1)
+            if overlap:
+                time_list = result
+            user_dict[k] = time_list
 
 
 def compareDateTime2(dt1, dt2):
     return True if dt2 <= dt1 else False  # <0则前者较小
+
+
+def compare_trajectory(address_places_list, places_dict):
+    return
 
 
 if __name__ == '__main__':
@@ -202,7 +228,8 @@ if __name__ == '__main__':
     endTime = input("请输入查询的结束时间（格式：2020-11-23 23:00:00）：")
 
     start = time.time()
-    places_dict = account_places_number(startTime, endTime)
-
+    address_places_list = []
+    places_dict = account_places_number(startTime, endTime, address_places_list)
+    compare_trajectory(address_places_list, places_dict)
     end = time.time()
     print('程序执行时间(s)： ', end - start)
