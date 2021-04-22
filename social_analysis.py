@@ -109,7 +109,7 @@ def account_places_number(startTime, endTime, address_places_list):
                     for time_stamp in user_dict[user_id]:
                         result_dict.setdefault(address, {}).setdefault(user_id, []).append(time_stamp)
         if address_flag:
-            sorted_user_time(result_dict, address)
+            # sorted_user_time(result_dict, address)
             address_number_dict[address] = len(result_dict[address])
             address_flag = False
     address_places_list = sorted(address_number_dict.items(), key=lambda x: x[1], reverse=False)
@@ -186,8 +186,7 @@ def producer(q, year_month_dict):
     # q.join()
 
 
-def sorted_user_time(result_dict, address):
-    user_dict = result_dict[address]
+def sorted_user_time(user_dict):
     for k, v in user_dict.items():
         time_list = sorted(v, key=lambda x: x[0].timestamp(), reverse=False)
         # 合并连续时间
@@ -196,23 +195,24 @@ def sorted_user_time(result_dict, address):
             overlap = False
             result = []
             t1 = []
-            for time in time_list:
+            time_list_len = len(time_list) - 1
+            for i, time in enumerate(time_list):
                 if first_stamp:
                     t1 = time
                     first_stamp = False
                     continue
+                # 如果时间戳相差阈值小于30分钟，则也视为时间连续
+                if t1[1] >= time[0] or ((time[0] - t1[1]).total_seconds() <= 1800):
+                    overlap = True
+                    t1 = [min(t1[0], time[0]), max(t1[1], time[1])]
                 else:
-                    # 如果时间戳相差阈值小于30分钟，则也视为时间连续
-                    if t1[1] >= time[0] or ((time[1] - t1[0]).total_seconds() <= 1800):
-                        overlap = True
-                        t1 = [(min(t1[0], time[0]), max(t1[1], time[1]))]
-                        first_stamp = False
-                    else:
-                        first_stamp = True
-                        result.append(t1)
+                    result.append(t1)
+                    t1 = time
+                if i == time_list_len:
+                    result.append(t1)
             if overlap:
                 time_list = result
-            user_dict[k] = time_list
+        user_dict[k] = time_list
 
 
 def compareDateTime2(dt1, dt2):
@@ -220,13 +220,55 @@ def compareDateTime2(dt1, dt2):
 
 
 def compare_trajectory(address_places_list, places_dict):
+    q = Queue()
+    q2 = Queue()
+    # 创建生产者
+    p = Process(target=trajectory_producer, args=(q, places_dict, address_places_list))
+    p.start()
+    # 创建消费者
+    c = []
+    for i in range(process_num):
+        c.append(
+            Process(target=trajectory_consumer, args=(q, places_dict))
+        c[i].start()
 
+    for i in range(process_num):
+        while True:
+            if not q2.empty():
+                result_list.append(q2.get())
+                break
+    # 多进程
+    for i in range(process_num):
+        print("----%d:准备回收进程" % i)
+        c[i].join(timeout=1)
+        print("----%d:回收进程已结束" % i)
+        if c[i].is_alive():
+            c[i].terminate()
+            c[i].join()
     return
+
+
+def trajectory_producer(q, places_dict, address_places_list):
+    for addrees in address_places_list:
+        user_dict = places_dict[addrees]
+        q.put(user_dict)
+
+
+def trajectory_consumer(q, places_dict):
+    while True:
+        if q.empty():
+            # print("end")
+            break
+        user_dict = q.get()
+        sorted_user_time(user_dict)
+        # 循环比较学生行为轨迹时间段
+        for i in user_dict:
+
 
 
 if __name__ == '__main__':
     startTime = input("请输入查询的开始时间（格式：2020-11-22 08:00:00）：")
-    endTime = input("请输入查询的结束时间（格式：2020-11-23 23:00:00）：")
+    endTime = input("请输入查询的结束时间（格式：2020-11-22 11:00:00）：")
 
     start = time.time()
     address_places_list = []
