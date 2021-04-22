@@ -8,7 +8,7 @@ import math
 from selenium import webdriver
 from PIL import Image
 
-dataPath = "data/xuehao-mac/"
+dataPath = "../data/xuehao-mac/"
 location_file = 'ap_mac_location.xlsx'
 user_file_name = 'UserMac20201231.csv'
 process_num = 5
