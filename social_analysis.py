@@ -220,6 +220,7 @@ def compareDateTime2(dt1, dt2):
 
 
 def compare_trajectory(address_places_list, places_dict):
+
     return
 
 
