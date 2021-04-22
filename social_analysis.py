@@ -109,7 +109,7 @@ def account_places_number(startTime, endTime, address_places_list):
                     for time_stamp in user_dict[user_id]:
                         result_dict.setdefault(address, {}).setdefault(user_id, []).append(time_stamp)
         if address_flag:
-            sorted_user_time(result_dict, address)
+            # sorted_user_time(result_dict, address)
             address_number_dict[address] = len(result_dict[address])
             address_flag = False
     address_places_list = sorted(address_number_dict.items(), key=lambda x: x[1], reverse=False)
@@ -186,8 +186,7 @@ def producer(q, year_month_dict):
     # q.join()
 
 
-def sorted_user_time(result_dict, address):
-    user_dict = result_dict[address]
+def sorted_user_time(user_dict):
     for k, v in user_dict.items():
         time_list = sorted(v, key=lambda x: x[0].timestamp(), reverse=False)
         # 合并连续时间
@@ -224,13 +223,13 @@ def compare_trajectory(address_places_list, places_dict):
     q = Queue()
     q2 = Queue()
     # 创建生产者
-    p = Process(target=trajectory_producer, args=(q, places_dict))
+    p = Process(target=trajectory_producer, args=(q, places_dict, address_places_list))
     p.start()
     # 创建消费者
     c = []
     for i in range(process_num):
         c.append(
-            Process(target=trajectory_consumer, args=(q)))
+            Process(target=trajectory_consumer, args=(q, places_dict))
         c[i].start()
 
     for i in range(process_num):
@@ -247,6 +246,24 @@ def compare_trajectory(address_places_list, places_dict):
             c[i].terminate()
             c[i].join()
     return
+
+
+def trajectory_producer(q, places_dict, address_places_list):
+    for addrees in address_places_list:
+        user_dict = places_dict[addrees]
+        q.put(user_dict)
+
+
+def trajectory_consumer(q, places_dict):
+    while True:
+        if q.empty():
+            # print("end")
+            break
+        user_dict = q.get()
+        sorted_user_time(user_dict)
+        # 循环比较学生行为轨迹时间段
+        for i in user_dict:
+
 
 
 if __name__ == '__main__':
