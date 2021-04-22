@@ -11,7 +11,7 @@ from selenium import webdriver
 from PIL import Image
 from IPython.display import IFrame
 
-dataPath = "data/xuehao-mac/"
+dataPath = "F:/guolab/python/data/xuehao-mac/"
 picture = "picture/"
 rj_location_file = 'rj.xlsx'
 h3_location_file = 'h3c.xls'

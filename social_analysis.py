@@ -8,7 +8,7 @@ import math
 from selenium import webdriver
 from PIL import Image
 
-dataPath = "../data/xuehao-mac/"
+dataPath = "F:/guolab/python/data/xuehao-mac/"
 location_file = 'ap_mac_location.xlsx'
 user_file_name = 'UserMac20201231.csv'
 process_num = 5
@@ -222,6 +222,7 @@ def compareDateTime2(dt1, dt2):
 def compare_trajectory(address_places_list, places_dict):
     q = Queue()
     q2 = Queue()
+    share_var_user = Manager().dict()
     # 创建生产者
     p = Process(target=trajectory_producer, args=(q, places_dict, address_places_list))
     p.start()
@@ -229,14 +230,9 @@ def compare_trajectory(address_places_list, places_dict):
     c = []
     for i in range(process_num):
         c.append(
-            Process(target=trajectory_consumer, args=(q, places_dict))
+            Process(target=trajectory_consumer, args=(q, places_dict, share_var_user)))
         c[i].start()
 
-    for i in range(process_num):
-        while True:
-            if not q2.empty():
-                result_list.append(q2.get())
-                break
     # 多进程
     for i in range(process_num):
         print("----%d:准备回收进程" % i)
@@ -250,19 +246,65 @@ def compare_trajectory(address_places_list, places_dict):
 
 def trajectory_producer(q, places_dict, address_places_list):
     for addrees in address_places_list:
-        user_dict = places_dict[addrees]
-        q.put(user_dict)
+        q.put(places_dict[addrees])
 
 
-def trajectory_consumer(q, places_dict):
+def trajectory_consumer(q, places_dict, share_var_user):
     while True:
         if q.empty():
             # print("end")
             break
+        # user_dict：key 用户, value 时间段
         user_dict = q.get()
         sorted_user_time(user_dict)
+        user_list = list(user_dict)
         # 循环比较学生行为轨迹时间段
-        for i in user_dict:
+        for i in range(len(user_list)-1):
+            for j in range(i+1, len(user_list)):
+                associated_time = 0
+                user_flag = False
+                user_name_one = user_list[i]
+                user_name_two = user_list[j]
+                user_pair1 = (user_name_one, user_name_two)
+                user_pair2 = (user_name_two, user_name_one)
+                if user_pair1 in share_var_user:
+                    user_pair = user_pair1
+                    # 全局用户关联对的关联时间大于400min时,则忽略不再计算这对用户
+                    if share_var_user[user_pair] > 24000:
+                        break
+                elif user_pair2 in share_var_user:
+                    user_pair = user_pair2
+                    if share_var_user[user_pair] > 24000:
+                        break
+                else:
+                    user_flag = True
+                    user_pair = user_pair1
+                time_one_list = user_dict[user_name_one]
+                time_two_list = user_dict[user_name_two]
+                l = k = 0
+                time_one_length = len(time_one_list)
+                time_two_length = len(time_two_list)
+                while True:
+                    if l < time_one_length or k < time_two_length:
+                        break
+                    time1 = time_one_list[l]
+                    time2 = time_two_list[k]
+                    if time2[1] <= time1[0]:
+                        l += 1
+                        continue
+                    elif time2[0] >= time1[1]:
+                        k += 1
+                        continue
+                    elif time2[1] >= time1[1]:
+                        l += 1
+                    else:
+                        k += 1
+                    associated_time += (max(time2[1], time1[1]) - min(time2[0], time1[0])).total_seconds()
+                if associated_time >0:
+                    if user_flag:
+                        share_var_user[user_pair] = associated_time
+                    else:
+                        share_var_user[user_pair] += associated_time
 
 
 
@@ -273,6 +315,6 @@ if __name__ == '__main__':
     start = time.time()
     address_places_list = []
     places_dict = account_places_number(startTime, endTime, address_places_list)
-    compare_trajectory(address_places_list, places_dict)
+    # compare_trajectory(address_places_list, places_dict)
     end = time.time()
     print('程序执行时间(s)： ', end - start)

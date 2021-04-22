@@ -19,7 +19,7 @@ Done = 'done'
 Error = 'error'
 Empty = 'empty'
 
-dataPath = "data/xuehao-mac/"
+dataPath = "F:/guolab/python/data/xuehao-mac/"
 
 # python findLocation.py --ID S181401284 --U "2020-11-22 08:00:00" --D "2020-11-23 00:00:00"
 
