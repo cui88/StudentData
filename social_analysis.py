@@ -230,7 +230,7 @@ def compare_trajectory(address_places_list, places_dict):
     c = []
     for i in range(process_num):
         c.append(
-            Process(target=trajectory_consumer, args=(q, places_dict, share_var_user)))
+            Process(target=trajectory_consumer, args=(q, share_var_user)))
         c[i].start()
 
     # 多进程
@@ -249,7 +249,7 @@ def trajectory_producer(q, places_dict, address_places_list):
         q.put(places_dict[addrees])
 
 
-def trajectory_consumer(q, places_dict, share_var_user):
+def trajectory_consumer(q, share_user_pair, share_var_user):
     while True:
         if q.empty():
             # print("end")
@@ -258,23 +258,28 @@ def trajectory_consumer(q, places_dict, share_var_user):
         user_dict = q.get()
         sorted_user_time(user_dict)
         user_list = list(user_dict)
+        user_time_dict = {}
         # 循环比较学生行为轨迹时间段
         for i in range(len(user_list)-1):
+            user_name_one = user_list[i]
+            if user_name_one in share_var_user:
+                break
             for j in range(i+1, len(user_list)):
                 associated_time = 0
                 user_flag = False
-                user_name_one = user_list[i]
                 user_name_two = user_list[j]
+                if user_name_two in share_var_user:
+                    continue
                 user_pair1 = (user_name_one, user_name_two)
                 user_pair2 = (user_name_two, user_name_one)
-                if user_pair1 in share_var_user:
+                if user_pair1 in share_user_pair:
                     user_pair = user_pair1
                     # 全局用户关联对的关联时间大于400min时,则忽略不再计算这对用户
-                    if share_var_user[user_pair] > 24000:
+                    if share_user_pair[user_pair] > 24000:
                         break
-                elif user_pair2 in share_var_user:
+                elif user_pair2 in share_user_pair:
                     user_pair = user_pair2
-                    if share_var_user[user_pair] > 24000:
+                    if share_user_pair[user_pair] > 24000:
                         break
                 else:
                     user_flag = True
@@ -299,13 +304,20 @@ def trajectory_consumer(q, places_dict, share_var_user):
                         l += 1
                     else:
                         k += 1
-                    associated_time += (max(time2[1], time1[1]) - min(time2[0], time1[0])).total_seconds()
-                if associated_time >0:
+                    time_min = max(time2[0], time1[0])
+                    time_max = min(time2[1], time1[1])
+                    time_stamp = (time_max - time_min).total_seconds()
+                    associated_time += time_stamp
+                    t = [time_max, time_min]
+                    if user_name_one in user_time_dict:
+                        user_time_one = user_time_dict[user_name_one]
+                        for
+                        user_time_dict.setdefault(user_name_one, []).append(t)
+                if associated_time > 0:
                     if user_flag:
-                        share_var_user[user_pair] = associated_time
+                        share_user_pair[user_pair] = associated_time
                     else:
-                        share_var_user[user_pair] += associated_time
-
+                        share_user_pair[user_pair] += associated_time
 
 
 if __name__ == '__main__':
