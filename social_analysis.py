@@ -311,8 +311,27 @@ def trajectory_consumer(q, share_user_pair, share_var_user):
                     t = [time_max, time_min]
                     if user_name_one in user_time_dict:
                         user_time_one = user_time_dict[user_name_one]
-                        for i in user_time_one:
-                            user_time_dict.setdefault(user_name_one, []).append(t)
+                        for num in range(1, len(user_time_one)):
+                            user_time = user_time_one[num]
+                            if user_time[0] >= t[1]:
+                                break
+                            elif user_time[0] < t[1] <= user_time[1]:
+                                if t[0] < user_time[0]:
+                                    break
+                                else:
+                                    t2 = [min(user_time[0], time[0]), user_time[1]]
+                                    user_time_one[num] = t2
+                                    user_time_one[0] += (user_time[0] - time[0]).total_seconds()
+
+
+                        user_time_dict[user_name_one] = user_time_one
+                    else:
+                        user_time_stamp = 36000 - time_stamp
+                        if user_time_stamp > 24000:
+                            share_var_user.append(user_time_one)
+                        else:
+                            user_time_one = [user_time_stamp, t]
+                            user_time_dict[user_name_one] = user_time_one
                 if associated_time > 0:
                     if user_flag:
                         share_user_pair[user_pair] = associated_time
