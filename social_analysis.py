@@ -311,8 +311,8 @@ def trajectory_consumer(q, share_user_pair, share_var_user):
                     t = [time_max, time_min]
                     if user_name_one in user_time_dict:
                         user_time_one = user_time_dict[user_name_one]
-                        for
-                        user_time_dict.setdefault(user_name_one, []).append(t)
+                        for i in user_time_one:
+                            user_time_dict.setdefault(user_name_one, []).append(t)
                 if associated_time > 0:
                     if user_flag:
                         share_user_pair[user_pair] = associated_time
