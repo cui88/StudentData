@@ -250,6 +250,37 @@ def trajectory_producer(q, places_dict, address_places_list):
 
 
 def trajectory_consumer(q, share_user_pair, share_var_user):
+    # 记录每个地点中用户的关联时间(不重复)，key:user  value:(list)[[t1,t2],..]
+    # value中的list第一个元素value为剩余可关联时间，默认为600min,
+    def compare_user_time(user_name_one, user_time_dict, t):
+        if user_name_one in user_time_dict:
+            user_time_one = user_time_dict[user_name_one]
+            for num in range(1, len(user_time_one)):
+                user_time = user_time_one[num]
+                if user_time[0] >= t[1]:
+                    break
+                elif user_time[0] < t[1] <= user_time[1]:
+                    if t[0] < user_time[0]:
+                        user_time_one[num] = [min(user_time[0], t[0]), user_time[1]]
+                        user_time_one[0] += (user_time[0] - t[0]).total_seconds()
+                        if user_time_one[0] >= 24000:
+                            share_var_user.append(user_name_one)
+                    break
+                else:
+                    if t[0] < user_time[1]:
+                        if user_time[0] > t[0]:
+                            user_time_one[num] = [t[0], user_time[1]]
+                            user_time_one[0] += (user_time[0] - t[0]).total_seconds()
+                            if user_time_one[0] >= 24000:
+                                share_var_user.append(user_name_one)
+                                break
+                        t = [user_time[1], t[1]]
+            user_time_dict[user_name_one] = user_time_one
+        else:
+            user_time_one = [time_stamp, t]
+            user_time_dict[user_name_one] = user_time_one
+
+
     while True:
         if q.empty():
             # print("end")
@@ -309,29 +340,12 @@ def trajectory_consumer(q, share_user_pair, share_var_user):
                     time_stamp = (time_max - time_min).total_seconds()
                     associated_time += time_stamp
                     t = [time_max, time_min]
-                    if user_name_one in user_time_dict:
-                        user_time_one = user_time_dict[user_name_one]
-                        for num in range(1, len(user_time_one)):
-                            user_time = user_time_one[num]
-                            if user_time[0] >= t[1]:
-                                break
-                            elif user_time[0] < t[1] <= user_time[1]:
-                                if t[0] < user_time[0]:
-                                    break
-                                else:
-                                    t2 = [min(user_time[0], time[0]), user_time[1]]
-                                    user_time_one[num] = t2
-                                    user_time_one[0] += (user_time[0] - time[0]).total_seconds()
-
-
-                        user_time_dict[user_name_one] = user_time_one
+                    if time_stamp >= 24000:
+                        share_var_user.append(user_name_one)
+                        share_var_user.append(user_name_two)
                     else:
-                        user_time_stamp = 36000 - time_stamp
-                        if user_time_stamp > 24000:
-                            share_var_user.append(user_time_one)
-                        else:
-                            user_time_one = [user_time_stamp, t]
-                            user_time_dict[user_name_one] = user_time_one
+                        compare_user_time(user_name_one, user_time_dict, t, time_stamp)
+                        compare_user_time(user_name_two, user_time_dict, t, time_stamp)
                 if associated_time > 0:
                     if user_flag:
                         share_user_pair[user_pair] = associated_time
