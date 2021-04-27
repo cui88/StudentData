@@ -55,7 +55,8 @@ def getAddressList():
     return location_pd['Location'].unique().tolist()
 
 
-def account_places_number(startTime, endTime, address_places_list):
+def account_places_number(startTime, endTime):
+    # print(id(address_places_list))
     year_month_dict = {}
 
     user_path = os.path.join(dataPath, user_file_name)
@@ -112,12 +113,11 @@ def account_places_number(startTime, endTime, address_places_list):
             # sorted_user_time(result_dict, address)
             address_number_dict[address] = len(result_dict[address])
             address_flag = False
-    address_places_list = sorted(address_number_dict.items(), key=lambda x: x[1], reverse=False)
-    print(address_places_list)
+    address_places_list = sorted(address_number_dict.items(), key=lambda x: x[1], reverse=False).copy()
     print('--------------')
     print(len(result_dict))
     print('--------------')
-    return result_dict
+    return (result_dict, address_places_list)
 
 
 def consumer(q, user_dict, local_dict, up_time, down_time, q2):
@@ -222,36 +222,44 @@ def compareDateTime2(dt1, dt2):
 def compare_trajectory(address_places_list, places_dict):
     q = Queue()
     q2 = Queue()
-    share_var_user = Manager().dict()
+    share_var_user = Manager().list()
+    share_user_pair = Manager().dict()
     # 创建生产者
     p = Process(target=trajectory_producer, args=(q, places_dict, address_places_list))
     p.start()
     # 创建消费者
     c = []
-    for i in range(process_num):
+    process_num_2 = 1
+    for i in range(process_num_2):
         c.append(
-            Process(target=trajectory_consumer, args=(q, share_var_user)))
+            Process(target=trajectory_consumer, args=(q, share_user_pair, share_var_user, q2)))
         c[i].start()
 
+    p.join()
     # 多进程
-    for i in range(process_num):
+    for i in range(process_num_2):
         print("----%d:准备回收进程" % i)
-        c[i].join(timeout=1)
+        # c[i].join(timeout=1)
+        c[i].join()
         print("----%d:回收进程已结束" % i)
-        if c[i].is_alive():
-            c[i].terminate()
-            c[i].join()
+        # if c[i].is_alive():
+        #     c[i].terminate()
+        #     c[i].join()
     return
 
 
 def trajectory_producer(q, places_dict, address_places_list):
-    for addrees in address_places_list:
+    print("-------")
+    print(len(address_places_list))
+    for addrees_pair in address_places_list:
+        addrees = addrees_pair[0]
         q.put(places_dict[addrees])
 
 
-def trajectory_consumer(q, share_user_pair, share_var_user):
+def trajectory_consumer(q, share_user_pair, share_var_user, q2):
     # 记录每个地点中用户的关联时间(不重复)，key:user  value:(list)[[t1,t2],..]
     # value中的list第一个元素value为剩余可关联时间，默认为600min,
+    print("trajectory_consumer进程start!")
     def compare_user_time(user_name_one, user_time_dict, t):
         if user_name_one in user_time_dict:
             user_time_one = user_time_dict[user_name_one]
@@ -283,7 +291,7 @@ def trajectory_consumer(q, share_user_pair, share_var_user):
 
     while True:
         if q.empty():
-            # print("end")
+            print("end")
             break
         # user_dict：key 用户, value 时间段
         user_dict = q.get()
@@ -351,15 +359,16 @@ def trajectory_consumer(q, share_user_pair, share_var_user):
                         share_user_pair[user_pair] = associated_time
                     else:
                         share_user_pair[user_pair] += associated_time
-
+    q2.put("end")
 
 if __name__ == '__main__':
     startTime = input("请输入查询的开始时间（格式：2020-11-22 08:00:00）：")
     endTime = input("请输入查询的结束时间（格式：2020-11-22 11:00:00）：")
 
     start = time.time()
-    address_places_list = []
-    places_dict = account_places_number(startTime, endTime, address_places_list)
-    # compare_trajectory(address_places_list, places_dict)
+    places_pair = account_places_number(startTime, endTime)
+    places_dict = places_pair[0]
+    address_places_list = places_pair[1]
+    compare_trajectory(address_places_list, places_dict)
     end = time.time()
     print('程序执行时间(s)： ', end - start)
