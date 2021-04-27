@@ -14,6 +14,7 @@ user_file_name = 'UserMac20201231.csv'
 process_num = 5
 latlng_file_name = 'location.xlsx'
 
+
 # 设定每个用户每天初始活动时间为 10h*60min = 600min
 # 按地点访问人数降序排列
 
@@ -151,18 +152,19 @@ def consumer(q, user_dict, local_dict, up_time, down_time, q2):
                             for i in range(len(group)):
                                 user_up_time = group['Up_Time'][i]
                                 if compareDateTime2(user_up_time, startDateTime) and compareDateTime2(endDateTime,
-                                                                                              user_up_time):
+                                                                                                      user_up_time):
                                     user_down_time = group['Down_Time'][i]
                                     device_mac = group['Device_Mac'][i]
                                     if device_mac.strip() in user_dict:
                                         user_id = user_dict[device_mac]
-                                        result_dict.setdefault(name, {}).setdefault(user_id,[]).append([user_up_time, user_down_time])
+                                        result_dict.setdefault(name, {}).setdefault(user_id, []).append(
+                                            [user_up_time, user_down_time])
         else:
             print("%s文件不存在!" % ap_path)
         # Queue.task_done() 在完成一项工作之后，Queue.task_done()函数向任务已经完成的队列发送一个信号
         # q.task_done()
     print('--------')
-    print("进程结果长度：%d"%len(result_dict))
+    print("进程结果长度：%d" % len(result_dict))
     q2.put(result_dict)
 
 
@@ -232,7 +234,7 @@ def compare_trajectory(address_places_list, places_dict):
     process_num_2 = 1
     for i in range(process_num_2):
         c.append(
-            Process(target=trajectory_consumer, args=(q, share_user_pair, share_var_user, q2)))
+            Process(target=trajectory_consumer, args=(q, share_user_pair, share_var_user)))
         c[i].start()
 
     p.join()
@@ -249,23 +251,32 @@ def compare_trajectory(address_places_list, places_dict):
 
 
 def trajectory_producer(q, places_dict, address_places_list):
-    print("-------")
-    print(len(address_places_list))
     for addrees_pair in address_places_list:
         addrees = addrees_pair[0]
         q.put(places_dict[addrees])
 
 
-def trajectory_consumer(q, share_user_pair, share_var_user, q2):
+def trajectory_consumer(q, share_user_pair, share_var_user):
     # 记录每个地点中用户的关联时间(不重复)，key:user  value:(list)[[t1,t2],..]
     # value中的list第一个元素value为剩余可关联时间，默认为600min,
     print("trajectory_consumer进程start!")
-    def compare_user_time(user_name_one, user_time_dict, t):
+    def sort_list(list1):
+        list2 = []
+        for str in list1:
+            list2.append([datetime.datetime.strptime(str[0], '%Y-%m-%d %H:%M:%S'),datetime.datetime.strptime(str[1], '%Y-%m-%d %H:%M:%S')])
+        return list2
+
+    def compare_user_time(user_name_one, user_time_dict, t, time_stamp):
         if user_name_one in user_time_dict:
             user_time_one = user_time_dict[user_name_one]
+            time_end_flag = False
             for num in range(1, len(user_time_one)):
                 user_time = user_time_one[num]
                 if user_time[0] >= t[1]:
+                    user_time_one.insert(num, t)
+                    user_time_one[0] += (t[1] - t[0]).total_seconds()
+                    if user_time_one[0] >= 24000:
+                        share_var_user.append(user_name_one)
                     break
                 elif user_time[0] < t[1] <= user_time[1]:
                     if t[0] < user_time[0]:
@@ -283,27 +294,41 @@ def trajectory_consumer(q, share_user_pair, share_var_user, q2):
                                 share_var_user.append(user_name_one)
                                 break
                         t = [user_time[1], t[1]]
+                    if num == (len(user_time_one) - 1):
+                        time_end_flag = True
+            if time_end_flag:
+                user_time_one.append(t)
+                user_time_one[0] += (t[1] - t[0]).total_seconds()
+                if user_time_one[0] >= 24000:
+                    share_var_user.append(user_name_one)
             user_time_dict[user_name_one] = user_time_one
         else:
             user_time_one = [time_stamp, t]
             user_time_dict[user_name_one] = user_time_one
-
+        return user_time_dict
 
     while True:
         if q.empty():
             print("end")
             break
         # user_dict：key 用户, value 时间段
-        user_dict = q.get()
-        sorted_user_time(user_dict)
+        # user_dict = q.get()
+        # sorted_user_time(user_dict)
+        list1 = [['2020-11-28 09:00:40', '2020-11-28 09:23:40'], ['2020-11-28 10:00:20', '2020-11-28 10:00:40'], ['2020-11-28 10:00:40', '2020-11-28 10:38:40']]
+        list1 = sort_list(list1)
+        list2 = [['2020-11-28 09:00:10', '2020-11-28 09:23:20'], ['2020-11-28 09:23:20', '2020-11-28 10:00:52'], ['2020-11-28 10:00:52', '2020-11-28 10:38:40']]
+        list2 = sort_list(list2)
+        list3 = [['2020-11-28 09:00:15', '2020-11-28 09:22:20'], ['2020-11-28 09:23:20', '2020-11-28 10:00:55'], ['2020-11-28 10:00:58', '2020-11-28 10:39:40']]
+        list3 = sort_list(list3)
+        user_dict = {'S200200213': list1, '202093010102': list2, 'S2001W0057': list3}
         user_list = list(user_dict)
         user_time_dict = {}
         # 循环比较学生行为轨迹时间段
-        for i in range(len(user_list)-1):
+        for i in range(len(user_list) - 1):
             user_name_one = user_list[i]
             if user_name_one in share_var_user:
                 break
-            for j in range(i+1, len(user_list)):
+            for j in range(i + 1, len(user_list)):
                 associated_time = 0
                 user_flag = False
                 user_name_two = user_list[j]
@@ -329,15 +354,15 @@ def trajectory_consumer(q, share_user_pair, share_var_user, q2):
                 time_one_length = len(time_one_list)
                 time_two_length = len(time_two_list)
                 while True:
-                    if l < time_one_length or k < time_two_length:
+                    if l >= time_one_length or k >= time_two_length:
                         break
                     time1 = time_one_list[l]
                     time2 = time_two_list[k]
                     if time2[1] <= time1[0]:
-                        l += 1
+                        k += 1
                         continue
                     elif time2[0] >= time1[1]:
-                        k += 1
+                        l += 1
                         continue
                     elif time2[1] >= time1[1]:
                         l += 1
@@ -347,7 +372,7 @@ def trajectory_consumer(q, share_user_pair, share_var_user, q2):
                     time_max = min(time2[1], time1[1])
                     time_stamp = (time_max - time_min).total_seconds()
                     associated_time += time_stamp
-                    t = [time_max, time_min]
+                    t = [time_min, time_max]
                     if time_stamp >= 24000:
                         share_var_user.append(user_name_one)
                         share_var_user.append(user_name_two)
@@ -359,7 +384,14 @@ def trajectory_consumer(q, share_user_pair, share_var_user, q2):
                         share_user_pair[user_pair] = associated_time
                     else:
                         share_user_pair[user_pair] += associated_time
-    q2.put("end")
+        break
+    print('-----user_time_dict----')
+    print(user_time_dict)
+    print('-----share_user_pair-----')
+    print(share_user_pair)
+    print('-----share_var_user-----')
+    print(share_var_user)
+
 
 if __name__ == '__main__':
     startTime = input("请输入查询的开始时间（格式：2020-11-22 08:00:00）：")
