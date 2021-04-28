@@ -3,8 +3,8 @@ import os
 import pandas as pd
 
 
-path = 'F:/21年信息化办/数据库用户/'
-
+path = 'D:/guolab/湖大信息化工作/数据库用户/'
+# path = 'D:/guolab/湖大信息化工作/'
 
 def GetFileDirList():
     file_list = os.listdir(path)
@@ -12,7 +12,7 @@ def GetFileDirList():
 
 
 def GetSystemPd():
-    dataPath = 'F:/21年信息化办/信息化办虚拟机总表(1).xlsx'
+    dataPath = 'D:/guolab/湖大信息化工作/信息化办虚拟机总表(1).xlsx'
     writer = pd.ExcelFile(dataPath)
     sheet_len = len(writer.sheet_names)
     system_pd = pd.DataFrame()
@@ -42,7 +42,7 @@ def getDict(df, key_name, value_name):
 def user_search(result_df):
     ip_list = []
     file_list = GetFileDirList()
-    # file_list = ['BTMON.csv']
+    # file_list = ['SJBZK.csv']
     system_dict = getSystemDict()
     m_judge = 'from'
     for file in file_list:
@@ -87,11 +87,11 @@ def user_search(result_df):
                             if result3 != -1:
                                 str2 = str[result3+1:len(str)-1]
                             # print("str2:" + str2)
-                            str3 = str2
-                            result4 = str2.find('"', 0, len(str2)-1)
-                            if result4 != -1:
-                                str3 = str2[result4+1:len(str2)-1]
                             # print("str3:"+ str3)
+                            for l in range(len(str2)):
+                                if str2[l].isalpha():
+                                    break
+                            str3 = str2[l:]
                             print(str3)
                             if len(str3) != 0:
                                 if str3[0] == 'v' or view_judge in str3:
@@ -110,7 +110,7 @@ def user_search(result_df):
                     break
         user_pd = user_pd.drop_duplicates(subset='表名')
         result_df = pd.concat([user_pd, result_df])
-    result_df.to_excel('F:/21年信息化办/用户记录.xlsx', index=False, encoding='utf-8')
+    result_df.to_excel('D:/guolab/湖大信息化工作/用户记录.xlsx', index=False, encoding='utf-8')
     print(result_df.head())
     print(ip_list)
 
