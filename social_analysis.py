@@ -231,40 +231,57 @@ def compare_trajectory(address_places_list, places_dict):
     p.start()
     # 创建消费者
     c = []
-    process_num_2 = 1
+    process_num_2 = 5
     for i in range(process_num_2):
         c.append(
-            Process(target=trajectory_consumer, args=(q, share_user_pair, share_var_user)))
+            Process(target=trajectory_consumer, args=(q, share_user_pair, share_var_user, q2)))
         c[i].start()
 
     p.join()
+
+    while True:
+        if q2.qsize() == process_num_2:
+            break
     # 多进程
     for i in range(process_num_2):
         print("----%d:准备回收进程" % i)
-        # c[i].join(timeout=1)
-        c[i].join()
+        c[i].join(timeout=1)
+        # c[i].join()
         print("----%d:回收进程已结束" % i)
-        # if c[i].is_alive():
-        #     c[i].terminate()
-        #     c[i].join()
-    return
+        if c[i].is_alive():
+            c[i].terminate()
+            c[i].join()
+    print('----share_var_user----')
+    print(share_var_user)
+    return share_user_pair
 
 
 def trajectory_producer(q, places_dict, address_places_list):
     for addrees_pair in address_places_list:
         addrees = addrees_pair[0]
         q.put(places_dict[addrees])
+    # test代码
+    # def sort_list(list1):
+    #     list2 = []
+    #     for str in list1:
+    #         list2.append([datetime.datetime.strptime(str[0], '%Y-%m-%d %H:%M:%S'),datetime.datetime.strptime(str[1], '%Y-%m-%d %H:%M:%S')])
+    #     return list2
+    # list1 = [['2020-11-28 09:00:40', '2020-11-28 09:23:40'], ['2020-11-28 10:00:20', '2020-11-28 10:00:40'], ['2020-11-28 10:00:40', '2020-11-28 10:38:40']]
+    # list1 = sort_list(list1)
+    # list2 = [['2020-11-28 09:00:10', '2020-11-28 09:23:20'], ['2020-11-28 09:23:20', '2020-11-28 10:00:52'], ['2020-11-28 10:00:52', '2020-11-28 10:38:40']]
+    # list2 = sort_list(list2)
+    # list3 = [['2020-11-28 09:00:15', '2020-11-28 09:22:20'], ['2020-11-28 09:23:20', '2020-11-28 10:00:55'], ['2020-11-28 10:00:58', '2020-11-28 10:39:40']]
+    # list3 = sort_list(list3)
+    # user_dict1 = {'S200200213': list1, '202093010102': list2, 'S2001W0057': list3}
+    # user_dict2 = {'S200200213': list1, '202093010102': list2, 'S2001W0057': list3}
+    # q.put(user_dict1)
+    # q.put(user_dict2)
+    # test代码
 
-
-def trajectory_consumer(q, share_user_pair, share_var_user):
+def trajectory_consumer(q, share_user_pair, share_var_user, q2):
     # 记录每个地点中用户的关联时间(不重复)，key:user  value:(list)[[t1,t2],..]
     # value中的list第一个元素value为剩余可关联时间，默认为600min,
     print("trajectory_consumer进程start!")
-    def sort_list(list1):
-        list2 = []
-        for str in list1:
-            list2.append([datetime.datetime.strptime(str[0], '%Y-%m-%d %H:%M:%S'),datetime.datetime.strptime(str[1], '%Y-%m-%d %H:%M:%S')])
-        return list2
 
     def compare_user_time(user_name_one, user_time_dict, t, time_stamp):
         if user_name_one in user_time_dict:
@@ -312,20 +329,14 @@ def trajectory_consumer(q, share_user_pair, share_var_user):
             print("end")
             break
         # user_dict：key 用户, value 时间段
-        # user_dict = q.get()
-        # sorted_user_time(user_dict)
-        list1 = [['2020-11-28 09:00:40', '2020-11-28 09:23:40'], ['2020-11-28 10:00:20', '2020-11-28 10:00:40'], ['2020-11-28 10:00:40', '2020-11-28 10:38:40']]
-        list1 = sort_list(list1)
-        list2 = [['2020-11-28 09:00:10', '2020-11-28 09:23:20'], ['2020-11-28 09:23:20', '2020-11-28 10:00:52'], ['2020-11-28 10:00:52', '2020-11-28 10:38:40']]
-        list2 = sort_list(list2)
-        list3 = [['2020-11-28 09:00:15', '2020-11-28 09:22:20'], ['2020-11-28 09:23:20', '2020-11-28 10:00:55'], ['2020-11-28 10:00:58', '2020-11-28 10:39:40']]
-        list3 = sort_list(list3)
-        user_dict = {'S200200213': list1, '202093010102': list2, 'S2001W0057': list3}
+        user_dict = q.get()
+        sorted_user_time(user_dict)
         user_list = list(user_dict)
         user_time_dict = {}
         # 循环比较学生行为轨迹时间段
         for i in range(len(user_list) - 1):
             user_name_one = user_list[i]
+            # print("user_name_one:%s" % user_name_one)
             if user_name_one in share_var_user:
                 break
             for j in range(i + 1, len(user_list)):
@@ -384,13 +395,13 @@ def trajectory_consumer(q, share_user_pair, share_var_user):
                         share_user_pair[user_pair] = associated_time
                     else:
                         share_user_pair[user_pair] += associated_time
-        break
-    print('-----user_time_dict----')
-    print(user_time_dict)
-    print('-----share_user_pair-----')
-    print(share_user_pair)
-    print('-----share_var_user-----')
-    print(share_var_user)
+    q2.put("end")
+    # print('-----user_time_dict----')
+    # print(user_time_dict)
+    # print('-----share_user_pair-----')
+    # print(share_user_pair)
+    # print('-----share_var_user-----')
+    # print(share_var_user)
 
 
 if __name__ == '__main__':
@@ -401,6 +412,10 @@ if __name__ == '__main__':
     places_pair = account_places_number(startTime, endTime)
     places_dict = places_pair[0]
     address_places_list = places_pair[1]
-    compare_trajectory(address_places_list, places_dict)
+    user_dict_pair = compare_trajectory(address_places_list, places_dict)
+    s = str(user_dict_pair)
+    f = open('user_dict_pair.txt', 'w')
+    f.writelines(s)
+    f.close()
     end = time.time()
     print('程序执行时间(s)： ', end - start)
