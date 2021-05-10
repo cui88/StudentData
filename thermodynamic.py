@@ -154,8 +154,10 @@ def getLocationDict():
     return csvDict
 
 
+#dt1文件最大的上线时间,dt2上线时间
 def compareDateTime2(dt1, dt2):
-    return True if dt2 <= dt1 else False  # <0则前者较小
+    # return True if dt2 <= dt1 else False  # <0则前者较小
+    return True if (dt1 - dt2).total_seconds() >= 0 else False
 
 
 def strToDateTime(str):
@@ -247,7 +249,7 @@ def producer(q, year_month_dict):
         for file in file_list:
             h3_file = os.path.join(key, "h3_log" + file + "_")
             rj_file = os.path.join(key, "rj_log" + file + "_")
-            for i in range(0, 23):
+            for i in range(0, 24):
                 if i < 10:
                     end_num = '0' + str(i)
                 else:
@@ -280,8 +282,8 @@ def consumer(q, user_dict, local_dict, lat_lng_dict, up_time, down_time, q2, sha
                 ap_pd = ap_pd.reset_index(drop=True)
                 # print(ap_pd.head())
                 judge_time = ap_pd['time'][len(ap_pd) - 1]
-                if compareDateTime2(judge_time, startDateTime) and compareDateTime2(endDateTime,
-                                                                                    judge_time):
+                judge_time2 = ap_pd['Up_Time'][0]
+                if not (compareDateTime2(startDateTime,  judge_time) or compareDateTime2(judge_time2, endDateTime)):
                     ap_pd_group = ap_pd.groupby(ap_pd['time'])
                     for name, group in ap_pd_group:
                         if compareDateTime2(name, startDateTime) and compareDateTime2(endDateTime,
