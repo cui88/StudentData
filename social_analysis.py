@@ -12,8 +12,8 @@ dataPath = "F:/guolab/python/data/xuehao-mac/"
 result = 'F:/guolab/python/data/result/'
 location_file = 'ap_mac_location.xlsx'
 user_file_name = 'UserMac20201231.csv'
-process_num = 5
-process_num_2 = 5
+process_num = 4
+process_num_2 = 4
 latlng_file_name = 'location.xlsx'
 edge = 'edge.csv'
 node = 'node.csv'
@@ -103,6 +103,7 @@ def account_places_number(startTime, endTime):
     # type(i)为datetime
     address_flag = False
     address_number_dict = {}
+    user_test_dict = {}
     for address in address_list:
         # type(j)为dict
         for address_dict in result_list:
@@ -112,15 +113,39 @@ def account_places_number(startTime, endTime):
                 user_dict = address_dict[address]
                 for user_id in user_dict:
                     for time_stamp in user_dict[user_id]:
-                        result_dict.setdefault(address, {}).setdefault(user_id, []).append(time_stamp)
+                        #  result_dict.setdefault(address, {}).setdefault(user_id, []).append(time_stamp)
+                        # if user_id == '201710040408' or user_id == '201920030118':
+                            # print(user_id)
+                        dict = {}
+                        if address in result_dict:
+                            dict = result_dict[address]
+                        dict.setdefault(user_id, []).append(time_stamp)
+                        result_dict[address] = dict
         if address_flag:
             # sorted_user_time(result_dict, address)
             address_number_dict[address] = len(result_dict[address])
             address_flag = False
+    # for address in result_dict:
+    #     address_number_dict[address] = len(result_dict[address])
     address_places_list = sorted(address_number_dict.items(), key=lambda x: x[1], reverse=False).copy()
     print('--------------')
     print(len(result_dict))
+    # print(result_dict)
     print('--------------')
+    # for user in result_dict:
+    #     dict = result_dict[user]
+    #     for id in dict:
+    #         print(len(dict[id]))
+    # if '物理学院A栋-2-228' in result_dict:
+    #     dict = result_dict['物理学院A栋-2-228']
+    #     for user in dict:
+    #         print(user +"---%d"%len(dict[user]))
+    #         print(dict[user])
+    # print(user_test_dict)
+    # for user in user_test_dict:
+    #     print(user+"长度：")
+    #     print(len(user_test_dict[user]))
+    #     print(user_test_dict[user])
     return (result_dict, address_places_list)
 
 
@@ -135,7 +160,10 @@ def consumer(q, user_dict, local_dict, up_time, down_time, q2):
             print("end")
             break
         ap_path = q.get()
+        # print("%d--取元素！"%os.getpid())
+        # print("%d--%s取元素！" % (os.getpid(), ap_path))
         ap_file_path = os.path.abspath(os.path.join(dataPath, ap_path))
+
         if os.path.exists(ap_file_path):
             ap_pd = pd.read_csv(ap_file_path, na_values='NAN', encoding='utf_8_sig')
             if not ap_pd.empty:
@@ -147,13 +175,13 @@ def consumer(q, user_dict, local_dict, up_time, down_time, q2):
                 # 文件最小时间
                 judge_time2 = ap_pd['Up_Time'][0]
                 if not (compareDateTime2(startDateTime,  judge_time) or compareDateTime2(judge_time2, endDateTime)):
-                    # print('------%s'%ap_path)
+                    # print('%d------%s'%(os.getpid(),ap_path))
                     ap_pd['Down_Time'] = pd.to_datetime(ap_pd['Down_Time'])
                     ap_pd['AP_Mac'] = ap_pd['AP_Mac'].str.lower()
                     ap_pd['Location'] = ap_pd['AP_Mac'].map(local_dict)
                     ap_pd = ap_pd[ap_pd['Location'].notna()]
                     # print(ap_pd)
-                    if not ap_pd.empty:
+                    if not (ap_pd.empty or len(ap_pd) == 1):
                         ap_pd_group = ap_pd.groupby(ap_pd['Location'])
                         # print(len(ap_pd_group))
                         for name, group in ap_pd_group:
@@ -166,16 +194,21 @@ def consumer(q, user_dict, local_dict, up_time, down_time, q2):
                                     device_mac = group['Device_Mac'][i]
                                     if device_mac.strip() in user_dict:
                                         user_id = user_dict[device_mac]
-                                        result_dict.setdefault(name, {}).setdefault(user_id, []).append(
-                                            [user_up_time, user_down_time])
+                                        user_dict_new = {}
+                                        if name in result_dict:
+                                            user_dict_new = result_dict[name]
+                                        user_dict_new.setdefault(user_id, []).append([user_up_time, user_down_time])
+                                        # result_dict.setdefault(name, {}).setdefault(user_id, []).append(
+                                            # [user_up_time, user_down_time])
+                                        result_dict[name] = user_dict_new
                     else:
                         print("ap_pd为空！")
         else:
-            print("%s文件不存在!" % ap_path)
+            print("%d--%s文件不存在!" %(os.getpid(), ap_path))
         # Queue.task_done() 在完成一项工作之后，Queue.task_done()函数向任务已经完成的队列发送一个信号
         # q.task_done()
     print('--------')
-    print("进程结果长度：%d" % len(result_dict))
+    print("%d进程结果长度：%d"%(os.getpid(), len(result_dict)))
     q2.put(result_dict)
     # print(result_dict)
 
@@ -216,7 +249,7 @@ def sorted_user_time(user_dict):
                     first_stamp = False
                     continue
                 # 如果时间戳相差阈值小于30分钟，则也视为时间连续
-                if t1[1] >= time[0] or ((time[0] - t1[1]).total_seconds() <= 1800):
+                if t1[1] >= time[0] or (0 < (time[0] - t1[1]).total_seconds() <= 1800):
                     overlap = True
                     t1 = [min(t1[0], time[0]), max(t1[1], time[1])]
                 else:
@@ -249,7 +282,6 @@ def compare_trajectory(address_places_list, places_dict):
         c.append(
             Process(target=trajectory_consumer, args=(q_t, share_user_pair, share_var_user, q2_t)))
         c[i].start()
-
     p.join()
 
     while True:
@@ -266,6 +298,23 @@ def compare_trajectory(address_places_list, places_dict):
             c[i].join()
     print('----share_var_user----')
     print(share_var_user)
+    print("share_var_user长度：%d"%len(share_var_user))
+    # print(share_user_pair)
+    str = ('201710040408','201920030118')
+    str2 = ('201920030118','201710040408')
+    if str in share_user_pair:
+        print(share_user_pair[str])
+    else:
+        print("str1不存在")
+    if str2 in share_user_pair:
+        print("2222")
+        print(share_user_pair[str2])
+    else:
+        print("str2不存在")
+    if '201710040408' in share_var_user:
+        print('201710040408  存在')
+    if '201920030118' in share_var_user:
+        print('201920030118  存在')
     return share_user_pair
 
 
@@ -273,6 +322,25 @@ def trajectory_producer(q, places_dict, address_places_list):
     for addrees_pair in address_places_list:
         addrees = addrees_pair[0]
         q.put(places_dict[addrees])
+    # test代码
+    # def sort_list(list1):
+    #     list2 = []
+    #     for str in list1:
+    #         list2.append([datetime.datetime.strptime(str[0], '%Y-%m-%d %H:%M:%S'),datetime.datetime.strptime(str[1], '%Y-%m-%d %H:%M:%S')])
+    #     return list2
+    # list1 = [['2020-11-28 09:00:40', '2020-11-28 09:23:40'], ['2020-11-28 10:00:20', '2020-11-28 10:00:40'], ['2020-11-28 10:00:40', '2020-11-28 10:38:40']]
+    # list1 = sort_list(list1)
+    # list2 = [['2020-11-28 09:00:10', '2020-11-28 09:23:20'], ['2020-11-28 09:23:20', '2020-11-28 10:00:52'], ['2020-11-28 10:00:52', '2020-11-28 10:38:40']]
+    # list2 = sort_list(list2)
+    # list3 = [['2020-11-28 09:00:15', '2020-11-28 09:22:20'], ['2020-11-28 09:23:20', '2020-11-28 10:00:55'], ['2020-11-28 10:00:58', '2020-11-28 10:39:40']]
+    # list3 = sort_list(list3)
+    # user_dict1 = {'S200200213': list1, '202093010102': list2, 'S2001W0057': list3}
+    # user_dict2 = {'S200200213': list1, '202093010102': list2, 'S2001W0057': list3}
+    # user_dict1['201920030118'] = sort_list(user_dict1['201920030118'])
+    # user_dict1['201710040408'] = sort_list(user_dict1['201710040408'])
+    # q.put(user_dict1)
+    # q.put(user_dict2)
+
     # test代码
     # def sort_list(list1):
     #     list2 = []
@@ -296,7 +364,8 @@ def trajectory_consumer(q, share_user_pair, share_var_user, q2):
     # 记录每个地点中用户的关联时间(不重复)，key:user  value:(list)[[t1,t2],..]
     # value中的list第一个元素value为剩余可关联时间，默认为600min,
     print("trajectory_consumer进程start!")
-
+    str = ('201710040408','201920030118')
+    str2 = ('201920030118','201710040408')
     def compare_user_time(user_name_one, user_time_dict, t, time_stamp):
         if user_name_one in user_time_dict:
             user_time_one = user_time_dict[user_name_one]
@@ -304,14 +373,14 @@ def trajectory_consumer(q, share_user_pair, share_var_user, q2):
             for num in range(1, len(user_time_one)):
                 user_time = user_time_one[num]
                 if user_time[0] >= t[1]:
-                    user_time_one.insert(num, t)
+                    user_time_one.insert(num, t)     # 时间元素小于此用户存在的所有已关联的时间序列
                     user_time_one[0] += (t[1] - t[0]).total_seconds()
                     if user_time_one[0] >= 24000:
                         share_var_user.append(user_name_one)
                     break
                 elif user_time[0] < t[1] <= user_time[1]:
                     if t[0] < user_time[0]:
-                        user_time_one[num] = [min(user_time[0], t[0]), user_time[1]]
+                        user_time_one[num] = [min(user_time[0], t[0]), user_time[1]] # 时间元素起始时间小，扩大关联的此时间序列
                         user_time_one[0] += (user_time[0] - t[0]).total_seconds()
                         if user_time_one[0] >= 24000:
                             share_var_user.append(user_name_one)
@@ -326,7 +395,7 @@ def trajectory_consumer(q, share_user_pair, share_var_user, q2):
                                 break
                         t = [user_time[1], t[1]]
                     if num == (len(user_time_one) - 1):
-                        time_end_flag = True
+                        time_end_flag = True  # 最后一个时间段元素
             if time_end_flag:
                 user_time_one.append(t)
                 user_time_one[0] += (t[1] - t[0]).total_seconds()
@@ -337,6 +406,7 @@ def trajectory_consumer(q, share_user_pair, share_var_user, q2):
             user_time_one = [time_stamp, t]
             user_time_dict[user_name_one] = user_time_one
         return user_time_dict
+
     while True:
         print("队列长度：%d" % q.qsize())
         time.sleep(0.0000000000000000000001)
@@ -376,9 +446,14 @@ def trajectory_consumer(q, share_user_pair, share_var_user, q2):
                     user_pair = user_pair1
                 time_one_list = user_dict[user_name_one]
                 time_two_list = user_dict[user_name_two]
+                if user_pair == str or user_pair == str2:
+                    print(user_pair)
+                    print(time_one_list)
+                    print(time_two_list)
                 l = k = 0
                 time_one_length = len(time_one_list)
                 time_two_length = len(time_two_list)
+                # 比较同一个地方出现的两个用户之间是否有关联的时间
                 while True:
                     if l >= time_one_length or k >= time_two_length:
                         break
@@ -397,6 +472,7 @@ def trajectory_consumer(q, share_user_pair, share_var_user, q2):
                     time_min = max(time2[0], time1[0])
                     time_max = min(time2[1], time1[1])
                     time_stamp = (time_max - time_min).total_seconds()
+                    # print('time_stamp:%f'%time_stamp)
                     associated_time += time_stamp
                     t = [time_min, time_max]
                     if time_stamp >= 24000:
@@ -436,8 +512,8 @@ def save_result(user_dict):
 
 
 if __name__ == '__main__':
-    startTime = input("请输入查询的开始时间（格式：2020-11-22 08:00:00）：")
-    endTime = input("请输入查询的结束时间（格式：2020-11-22 11:00:00）：")
+    startTime = input("请输入查询的开始时间（格式：2020-11-22 00:00:00）：")
+    endTime = input("请输入查询的结束时间（格式：2020-11-22 23:59:59）：")
 
     start = time.time()
     places_pair = account_places_number(startTime, endTime)
